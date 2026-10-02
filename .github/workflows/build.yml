@@ -1,0 +1,55 @@
+name: Sensei APK Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository'yi indir
+        uses: actions/checkout@v4
+
+      - name: Zip dosyasını aç
+        run: |
+          ZIP=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "HATA: Repo kökünde .zip dosyası yok"
+            exit 1
+          fi
+          echo "Açılan dosya: $ZIP"
+          mkdir -p _proj
+          unzip -oq "$ZIP" -d _proj
+          SETTINGS=$(find _proj -name 'settings.gradle.kts' | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "HATA: Zip içinde settings.gradle.kts bulunamadı"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.10.2 kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Debug APK derle
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --stacktrace
+
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sensei-Gizli-Gorev-APK
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
